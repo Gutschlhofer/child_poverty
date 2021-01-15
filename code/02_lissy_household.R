@@ -19,14 +19,14 @@ hic <- c("au","ca","de","ie","uk","us")
 mic <- c("br","cn","in", "za")
 
 # years <- c('04','07','10','13','15')
-years <- 3:15
+years <- 2:16
 
 identifiers <- identifiers[identifiers != 'uk18h'] # uk18h is invalid
 
 identifiers <- identifiers[as.numeric(substr(identifiers,3,4)) %in% years] # reduce to most recent years because file size is too big
 
 # only HICs
-identifiers <- identifiers[substr(identifiers,1,2) %in% hic]
+# identifiers <- identifiers[substr(identifiers,1,2) %in% hic]
 
 # identifiers <- identifiers[substr(identifiers,1,2) == "us"]
 
@@ -36,7 +36,10 @@ poverty <- data.frame(
   rel_poverty = NA,
   abs_poverty = NA,
   rel_poverty_pc = NA,
-  abs_poverty_pc = NA
+  abs_poverty_pc = NA,
+  rel_poverty_means = NA,
+  rel_poverty_means_su = NA,
+  rel_poverty_means_su_pt = NA
 )
 
 for(i in 1:length(identifiers)){
@@ -88,10 +91,16 @@ for(i in 1:length(identifiers)){
   # other interesting:
   # hxiht Inter-Household Transfers Paid
   # hxotax Other Direct Taxes including property taxes
-  dat <- dat %>% mutate(dhi2 = (hilabour + hicapital + hipension + hipubsoc + hiprivate) - hxitsc)
+  dat <- dat %>% mutate(dhi2 = (hilabour + hicapital + hipension + hipubsoc + hiprivate) - hxitsc,
+                        hpublic2 = hpub_i + hpub_a + hpub_u,
+                        hpublicdiff = hpublic - hpublic2,
+                        hpubsocdiff = hipubsoc - hpublic2)
   
-  all.equal(dat$dhi, dat$dhi2) %>% print()
+  print(summary(dat$hpublicdiff))
+  print(summary(dat$hpubsocdiff))
+  print(summary(dat$hpub_a))
   
+  # all.equal(dat$dhi, dat$dhi2) %>% print()
   
   # per capita scale -----------------------------------------------------------
   lambda <- 1; gamma <- 1 #per capita scale
@@ -99,13 +108,12 @@ for(i in 1:length(identifiers)){
     mutate(sumhpopwgt = hpopwgt*nhhmem,
            sumhpopwgt17 = hpopwgt*nhhmem17) %>%
     mutate(phi = dhi/((nhhmem-nhhmem17)+lambda*nhhmem17)^gamma) %>% # equivalence scale
-    arrange(phi) %>%
     mutate(rel_povline = 0.25*(weighted.median(phi, w = sumhpopwgt))) %>%
-    mutate(is_rel_pov = if_else(phi <= rel_povline, T, F)) %>% #maybe < and not <=?
+    mutate(is_rel_pov = if_else(phi < rel_povline, T, F)) %>% #maybe < and not <=?
     filter(nhhmem17 >= 1)
 
   rel_poverty_pc <- sum(dat_child_pc$sumhpopwgt17[dat_child_pc$is_rel_pov])/sum(dat_child_pc$sumhpopwgt17)*100
-  print(rel_poverty_pc)
+  # print(rel_poverty_pc)
   
   # LIS sqrt scale -------------------------------------------------------------
   # lambda <- 1; gamma <- 1 #per capita scale
@@ -115,13 +123,27 @@ for(i in 1:length(identifiers)){
     mutate(sumhpopwgt = hpopwgt*nhhmem,
            sumhpopwgt17 = hpopwgt*nhhmem17) %>%
     mutate(phi = dhi/((nhhmem-nhhmem17)+lambda*nhhmem17)^gamma) %>% # equivalence scale
-    arrange(phi) %>% 
     mutate(rel_povline = 0.25*(weighted.median(phi, w = sumhpopwgt))) %>%
-    mutate(is_rel_pov = if_else(phi <= rel_povline, T, F)) %>% #maybe < and not <=?
+    mutate(is_rel_pov = if_else(phi < rel_povline, T, F)) %>% #maybe < and not <=?
     filter(nhhmem17 >= 1)
   
   rel_poverty <- sum(dat_child$sumhpopwgt17[dat_child$is_rel_pov])/sum(dat_child$sumhpopwgt17)*100
-  print(rel_poverty)
+  # print(rel_poverty)
+  
+  
+  dat_child_disaggregated <- dat_child %>% 
+    mutate(
+      dhi_means = dhi - hpub_a, # - assistance transfers
+      dhi_means_su = dhi_means - hpub_u - hpub_i,
+      dhi_means_su_pt = dhi_means_su - hiprivate,
+      phi_means = dhi_means/((nhhmem-nhhmem17)+lambda*nhhmem17)^gamma,
+      phi_means_su = dhi_means_su/((nhhmem-nhhmem17)+lambda*nhhmem17)^gamma,
+      phi_means_su_pt = dhi_means_su_pt/((nhhmem-nhhmem17)+lambda*nhhmem17)^gamma
+    )
+  
+  rel_poverty_means <- sum(dat_child_disaggregated$sumhpopwgt17[dat_child_disaggregated$phi_means < dat_child_disaggregated$rel_povline])/sum(dat_child_disaggregated$sumhpopwgt17)*100
+  rel_poverty_means_su <- sum(dat_child_disaggregated$sumhpopwgt17[dat_child_disaggregated$phi_means_su < dat_child_disaggregated$rel_povline])/sum(dat_child_disaggregated$sumhpopwgt17)*100
+  rel_poverty_means_su_pt <- sum(dat_child_disaggregated$sumhpopwgt17[dat_child_disaggregated$phi_means_su_pt < dat_child_disaggregated$rel_povline])/sum(dat_child_disaggregated$sumhpopwgt17)*100
   
   # extreme/absolute poverty
   deflat <- read.dta13(paste(INC_DIR, "/ppp_2011.dta", sep=""),convert.factors=FALSE)
@@ -130,27 +152,30 @@ for(i in 1:length(identifiers)){
   # line <- 6
   line <- if_else(substr(identifier,1,2) %in% hic, 6, 2)
   
+  leap_year <- c(2000,2004,2008,2012,2016,2020)
+  
   dat_child <- dat_child %>%
     left_join(deflat, by = c("iso3", "year")) %>%
-    mutate(abs_povline = line*(cpi/100)) %>% # we need to calculate back to the poverty line of 2011
+    # mutate(abs_povline = line/(cpi/100)) %>% # we need to calculate back to the poverty line of 2011
     # mutate(phi_ppp = (phi/ppp)/365.25) %>%
-    mutate(phi_ppp = (phi/lisppp)/365.25) %>%
+    mutate(abs_povline = line,
+           phi_ppp = (phi/lisppp)/ifelse(year %in% leap_year,366,365)) %>%
     mutate(abs_pov_i = if_else(phi_ppp <= abs_povline, T, F)) #maybe < and not <=?
   
   abs_poverty <- sum(dat_child$sumhpopwgt17[dat_child$abs_pov_i])/sum(dat_child$sumhpopwgt17)*100
-  print(abs_poverty)
+  # print(abs_poverty)
   
   dat_child_pc <- dat_child_pc %>%
     left_join(deflat, by = c("iso3", "year")) %>%
-    mutate(abs_povline = line*(cpi/100)) %>% # we need to calculate back to the poverty line of 2011
-    mutate(phi_ppp = (phi/lisppp)/365.25) %>%
+    # mutate(abs_povline = line/(cpi/100)) %>% # we need to calculate back to the poverty line of 2011
+    # mutate(phi_ppp = (phi/lisppp)/365.25) %>%
+    mutate(abs_povline = line,
+           phi_ppp = (phi/lisppp)/ifelse(year %in% leap_year,366,365)) %>%
     mutate(abs_pov_i = if_else(phi_ppp <= abs_povline, T, F)) #maybe < and not <=?
   
-  print(line)
-    
-  
+  # print(line)
   abs_poverty_pc <- sum(dat_child_pc$sumhpopwgt17[dat_child_pc$abs_pov_i])/sum(dat_child_pc$sumhpopwgt17)*100
-  print(abs_poverty_pc)
+  # print(abs_poverty_pc)
   
   poverty[i,]$iso3 <- unique(dat$iso3)
   poverty[i,]$year <- unique(dat$year)
@@ -158,6 +183,9 @@ for(i in 1:length(identifiers)){
   poverty[i,]$abs_poverty <- abs_poverty
   poverty[i,]$rel_poverty_pc <- rel_poverty_pc
   poverty[i,]$abs_poverty_pc <- abs_poverty_pc
+  poverty[i,]$rel_poverty_means <- rel_poverty_means
+  poverty[i,]$rel_poverty_means_su <- rel_poverty_means_su
+  poverty[i,]$rel_poverty_means_su_pt <- rel_poverty_means_su_pt
 }
 
 # rel_poverty
@@ -178,9 +206,10 @@ sprintf("%s (%s): rel: %.2f | abs: %.2f |PC:| rel: %.2f | abs: %.2f",
         poverty$rel_poverty_pc, poverty$abs_poverty_pc)
 
 # .csv output
-paste("ISO3", "Year", "pov_rel", "pov_abs", "pov_rel_pc", "pov_abs_pc", sep = ",")
+paste("iso3", "year", "rel", "abs_sqrt", "rel_pc", "abs_pc","rel_means","rel_means_su","rel_means_su_pt", sep = ",")
 paste(poverty$iso3, 
       poverty$year, 
       poverty$rel_poverty, poverty$abs_poverty,
-      poverty$rel_poverty_pc, poverty$abs_poverty_pc, sep = ",")
+      poverty$rel_poverty_pc, poverty$abs_poverty_pc,
+      poverty$rel_poverty_means, poverty$rel_poverty_means_su, poverty$rel_poverty_means_su_pt, sep = ",")
 
