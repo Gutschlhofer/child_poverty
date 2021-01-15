@@ -30,3 +30,97 @@ length(unique(caisme$iso3)) # same as paper
 
 caisme <- read.csv("input/caisme_results.csv")
 
+lissy <- read.csv("output/lissy_results.csv")
+
+comparison <- caisme %>% 
+  dplyr::mutate(iso3 = tolower(iso3)) %>% 
+  dplyr::left_join(lissy, by = c("year", "iso3"), suffix = c(".c",".l")) %>% 
+  dplyr::mutate(
+    rel.comp = round((rel.l-rel.c)/rel.c * 100),
+    abs_sqrt.comp = round((abs_sqrt.l-abs_sqrt.c)/abs_sqrt.c * 100),
+    abs_pc.comp = round((abs_pc.l-abs_pc.c)/abs_pc.c * 100),
+    # OK if within 5%, or within 0.1
+    rel.comp.ok = if_else(abs(rel.comp)<=5, TRUE, if_else(abs(rel.l-rel.c) < 0.1, TRUE, FALSE)),
+    abs_sqrt.comp.ok = if_else(abs(abs_sqrt.comp)<=5, TRUE, if_else(abs(abs_sqrt.l-abs_sqrt.c) < 0.1, TRUE, FALSE)),
+    abs_pc.comp.ok = if_else(abs(abs_pc.comp)<=5, TRUE, if_else(abs(abs_pc.l-abs_pc.c) < 0.1, TRUE, FALSE))
+  ) %>% 
+  dplyr::filter(!is.na(rel.comp)) %>% 
+  dplyr::select(iso3, year,
+                rel.l,rel.c,rel.comp,rel.comp.ok,
+                abs_sqrt.l,abs_sqrt.c,abs_sqrt.comp,abs_sqrt.comp.ok,
+                abs_pc.l,abs_pc.c,abs_pc.comp,abs_pc.comp.ok,
+                rel_means, rel_means_su, rel_means_su_pt) %>% 
+  dplyr::mutate(
+    rel_means_su_pt = rel_means_su_pt - rel_means_su,
+    rel_means_su = rel_means_su - rel_means,
+    rel_means = rel_means - rel.l,
+  )
+
+## fig. 1: rel/deep
+
+lissy_rel <- comparison %>%
+  dplyr::select(iso3, year, rel.l, rel.comp, rel.comp.ok) %>% 
+  dplyr::mutate(rel.comp = ifelse(rel.comp.ok, 0, rel.comp))
+
+ggplot(lissy_rel) +
+  geom_line(aes(colour=iso3, x=year, y=rel.l))
+
+ggplot(lissy_rel) +
+  geom_line(aes(colour=iso3, x=year, y=rel.comp))
+
+## fig. 2: abs/extreme
+
+lissy_abs <- comparison %>%
+  dplyr::select(iso3, year, starts_with("abs_")) %>%
+  dplyr::mutate(abs_sqrt.comp = ifelse(abs_sqrt.comp.ok, 0, abs_sqrt.comp),
+                abs_pc.comp = ifelse(abs_pc.comp.ok, 0, abs_pc.comp)) %>% 
+  tidyr::pivot_longer(cols = starts_with("abs_"))
+
+# hic
+ggplot(lissy_abs %>% 
+         dplyr::filter(iso3 %in% tolower(countrycode::countrycode(hic, "iso2c", "iso3c", custom_match = c("UK" = "GBR"))),
+                       name %in% c("abs_pc.l", "abs_sqrt.l"))) +
+  geom_line(aes(colour=iso3, linetype = name, x=year, y=value))
+
+ggplot(lissy_abs %>% 
+         dplyr::filter(iso3 %in% tolower(countrycode::countrycode(hic, "iso2c", "iso3c", custom_match = c("UK" = "GBR"))),
+                       name %in% c("abs_pc.comp", "abs_sqrt.comp"))) +
+  geom_line(aes(colour=iso3, linetype = name, x=year, y=value))
+
+# mic
+ggplot(lissy_abs %>% 
+         dplyr::filter(iso3 %in% tolower(countrycode::countrycode(mic, "iso2c", "iso3c", custom_match = c("UK" = "GBR"))),
+                       name %in% c("abs_pc.l", "abs_sqrt.l"))) +
+  geom_line(aes(colour=iso3, linetype = name, x=year, y=value))
+
+ggplot(lissy_abs %>% 
+         dplyr::filter(iso3 %in% tolower(countrycode::countrycode(mic, "iso2c", "iso3c", custom_match = c("UK" = "GBR"))),
+                       name %in% c("abs_pc.comp", "abs_sqrt.comp"))) +
+  geom_line(aes(colour=iso3, linetype = name, x=year, y=value))
+
+
+## fig. 3a: disagg
+
+disagg_name <- c(
+  rel.l = "Final",
+  rel_means = "Means tested programs",
+  rel_means_su = "Social insurance + Universal benefits",
+  rel_means_su_pt = "Private transfers"
+)
+
+lissy_disaggregated <- comparison %>% 
+  dplyr::select(starts_with("rel_"),rel.l,year,iso3) %>%
+  tidyr::pivot_longer(cols = c(starts_with("rel_"),rel.l)) %>%
+  dplyr::mutate(iso3_year = paste(iso3, year),
+                iso3_year = factor(iso3_year, levels = rev(unique(iso3_year)))) %>% # to have the y axis order fit
+  dplyr::mutate(name = disagg_name[name],
+                name = factor(name, levels = c(rev(disagg_name))))
+
+ggplot(lissy_disaggregated) + 
+  geom_bar(aes(fill=name, x=value, y=iso3_year), position="stack", stat="identity") +
+  scale_fill_viridis_d(direction = -1)
+
+lissy_deu <- lissy %>% dplyr::filter(iso3 == "deu")
+## TODO longer
+ggplot(lissy_deu) + 
+  geom_bar(aes(fill=name, x=value, y=iso3_year), position="stack", stat="identity")
