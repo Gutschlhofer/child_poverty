@@ -1,1 +1,2 @@
 # Potentially exclude some temporary files later
+lissy_results*.csv
