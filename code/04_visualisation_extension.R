@@ -41,9 +41,10 @@ ext <- c("de", "at", "dk", "fi", "ge", "gr", "il", "jp", "mx", "pl", "ru", "rs",
          "kr", "es", "ch", "tw", "uy")
 ext <- tolower(countrycode(ext, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
 
-lissy <- read.csv("output/lissy_results_extension.csv") %>%
+lissy <- read.csv("output/lissy_results.csv") %>%
   dplyr::mutate(cname = countrycode(iso3, "iso3c", "country.name", custom_match = c("RSB" = "Serbia"))) %>% 
-  dplyr::filter(cname != "Japan")
+  dplyr::filter(cname != "Japan",
+                iso3 %in% ext)
 
 # Relative Poverty -------------------------------------------------------------
 
@@ -103,94 +104,120 @@ ggplot(lissy_ext) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy$abs_pov_pc,na.rm=T)*100)/100, by = 0.1),
                      labels = scales::percent_format(accuracy = 1)) +
   facet_wrap(~cname, nrow = 2)
-ggsave(path = plot_path, filename = sprintf(plot_template, "absolute_poverty_5_50"), scale=1)
+ggsave(path = plot_path, filename = sprintf(plot_template, "absolute_poverty_5_50"), width = 8, height = 6)
 
 ## fig. 3a: disagg -------------------------------------------------------------
+
+make_disagg_comparison <- function(group1, group2, plot_name){
+  hic <- group1
+  mic <- group2
+  hic <- tolower(countrycode(hic, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
+  mic <- tolower(countrycode(mic, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
+  
+  ## for this graph, 2004 looked very weird, so we excluded it:
+  lissy <- lissy %>% dplyr::filter(year >= 2004)
+  
+  disagg_name <- c(
+    rel_pov_lis = "Disposable income",
+    rel_means = "Means tested programs",
+    rel_means_su = "Social insurance + Universal benefits",
+    rel_means_su_pt = "Private transfers"
+  )
+  
+  lissy_disaggregated <- lissy %>% 
+    dplyr::select(all_of(names(disagg_name)),year,cname,iso3) %>%
+    dplyr::mutate(
+      rel_means_su_pt = rel_means_su_pt - rel_means_su,
+      rel_means_su = rel_means_su - rel_means,
+      rel_means = rel_means - rel_pov_lis
+    ) %>% 
+    tidyr::pivot_longer(cols = all_of(names(disagg_name))) %>%
+    # dplyr::group_by(iso3) %>% 
+    # dplyr::mutate(country_year = if_else(
+    #   year == min(year),
+    #   sprintf("%s, %0.f", cname, year),
+    #   as.character(year))) %>% 
+    # dplyr::ungroup() %>% 
+    dplyr::mutate(name = disagg_name[name],
+                  name = factor(name, levels = c(rev(disagg_name)))) %>% 
+    # now we replace all countryname-year combos just with the year if it's not the first
+    dplyr::mutate(
+      # country_year == if_else(year == min(lissy$year[lissy$iso3 == iso3]), country_year, as.character(year)),
+      country_year = sprintf("%s, %0.f", cname, year),
+      country_year = factor(country_year, levels = rev(unique(country_year))),
+      year = factor(year, rev(sort(unique(year))))
+    )
+  
+  lissy_disaggregated_hic <- lissy_disaggregated %>% dplyr::filter(iso3 %in% hic,
+                                                                   iso3 != "irl")
+  lissy_disaggregated_mic <- lissy_disaggregated %>% dplyr::filter(iso3 %in% mic)
+  
+  max_pct_hic <- max((lissy_disaggregated_hic %>% 
+                        dplyr::group_by(country_year) %>% 
+                        dplyr::summarise(value = sum(value)))$value, na.rm=T)
+  max_pct_mic <- max((lissy_disaggregated_mic %>% 
+                        dplyr::group_by(country_year) %>% 
+                        dplyr::summarise(value = sum(value)))$value, na.rm=T)
+  
+  # use one for both
+  max_pct <- max(max_pct_hic, max_pct_mic)
+  max_pct_hic <- max_pct
+  max_pct_mic <- max_pct
+  
+  dis_hic <- ggplot(lissy_disaggregated_hic) + 
+    geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
+    scale_fill_viridis_d(direction = -1) +
+    facet_wrap(cname~., ncol = 1, nrow = length(unique(lissy_disaggregated_hic$cname)), strip.position = "left") +
+    # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), 
+    #                                                                    by = ifelse(length(unique(lissy_disaggregated_hic$cname)) < 4,
+    #                                                                                1,
+    #                                                                                2))]) +
+    # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
+    scale_x_continuous(breaks = seq(0, max_pct_hic, by = 0.05),
+                       labels = scales::percent_format(accuracy = 1),
+                       limits = c(0, max_pct_hic)) +
+    labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
+         fill = "") +
+    theme(legend.position="bottom") +
+    guides(fill = guide_legend(reverse = T))
+  
+  dis_legend <- get_legend(dis_hic)
+  
+  dis_hic <- dis_hic + 
+    theme(legend.position="none")
+  
+  dis_mic <- ggplot(lissy_disaggregated_mic) + 
+    geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
+    scale_fill_viridis_d(direction = -1) +
+    facet_wrap(cname~., ncol = 1, nrow = length(unique(lissy_disaggregated_mic$cname)), strip.position = "left") +
+    # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_mic$year)), by = 2)]) +
+    # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
+    scale_x_continuous(breaks = seq(0, max_pct_mic, by = 0.05),
+                       labels = scales::percent_format(accuracy = 1),
+                       limits = c(0, max_pct_mic)) +
+    labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
+         fill = "") +
+    theme(legend.position="none") +
+    guides(fill = guide_legend(reverse = T))
+  
+  plot_grid(plot_grid(dis_hic, dis_mic, ncol = 2), dis_legend, nrow = 2, rel_heights = c(0.95, 0.05))
+  ggsave(path = plot_path, filename = sprintf(plot_template, paste0("deep_disagg","_",plot_name)), width = 8, height = 6)
+}
 
 # Create the two groups to be compared
 hic <- c("de", "at", "dk", "fi", "gr", "jp", "kr", "es", "ch") # left group
 mic <- c("ge", "il", "mx", "pl", "ru", "rs", "tw", "uy")       # right group
-hic <- tolower(countrycode(hic, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
-mic <- tolower(countrycode(mic, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
+make_disagg_comparison(group1 = hic, group2 = mic, plot_name = "all")
 
-## for this graph, 2004 looked very weird, so we excluded it:
-lissy <- lissy %>% dplyr::filter(year != 2004)
+# Create the two groups to be compared
+hic <- c("de", "at", "dk", "fi") # left group
+mic <- c("gr", "es", "pl", "ch") # right group
+make_disagg_comparison(group1 = hic, group2 = mic, plot_name = "europe")
 
-disagg_name <- c(
-  rel_pov_lis = "Disposable income",
-  rel_means = "Means tested programs",
-  rel_means_su = "Social insurance + Universal benefits",
-  rel_means_su_pt = "Private transfers"
-)
-
-lissy_disaggregated <- lissy %>% 
-  dplyr::select(all_of(names(disagg_name)),year,cname,iso3) %>%
-  dplyr::mutate(
-    rel_means_su_pt = rel_means_su_pt - rel_means_su,
-    rel_means_su = rel_means_su - rel_means,
-    rel_means = rel_means - rel_pov_lis
-  ) %>% 
-  tidyr::pivot_longer(cols = all_of(names(disagg_name))) %>%
-  # dplyr::group_by(iso3) %>% 
-  # dplyr::mutate(country_year = if_else(
-  #   year == min(year),
-  #   sprintf("%s, %0.f", cname, year),
-  #   as.character(year))) %>% 
-  # dplyr::ungroup() %>% 
-  dplyr::mutate(name = disagg_name[name],
-                name = factor(name, levels = c(rev(disagg_name)))) %>% 
-  # now we replace all countryname-year combos just with the year if it's not the first
-  dplyr::mutate(
-    # country_year == if_else(year == min(lissy$year[lissy$iso3 == iso3]), country_year, as.character(year)),
-    country_year = sprintf("%s, %0.f", cname, year),
-    country_year = factor(country_year, levels = rev(unique(country_year))),
-    year = factor(year, rev(sort(unique(year))))
-  )
-
-lissy_disaggregated_hic <- lissy_disaggregated %>% dplyr::filter(iso3 %in% hic,
-                                                                 iso3 != "irl")
-lissy_disaggregated_mic <- lissy_disaggregated %>% dplyr::filter(iso3 %in% mic)
-
-max_pct_hic <- max((lissy_disaggregated_hic %>% 
-                      dplyr::group_by(country_year) %>% 
-                      dplyr::summarise(value = sum(value)))$value)
-max_pct_mic <- max((lissy_disaggregated_mic %>% 
-                      dplyr::group_by(country_year) %>% 
-                      dplyr::summarise(value = sum(value)))$value)
-
-dis_hic <- ggplot(lissy_disaggregated_hic) + 
-  geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
-  scale_fill_viridis_d(direction = -1) +
-  facet_wrap(cname~., ncol = 1, nrow = length(unique(lissy_disaggregated_hic$cname)), strip.position = "left") +
-  scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), by = 2)]) +
-  # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
-  scale_x_continuous(breaks = seq(0, max_pct_hic, by = 0.05),
-                     labels = scales::percent_format(accuracy = 1)) +
-  labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
-       fill = "") +
-  theme(legend.position="bottom") +
-  guides(fill = guide_legend(reverse = T))
-
-dis_legend <- get_legend(dis_hic)
-
-dis_hic <- dis_hic + 
-  theme(legend.position="none")
-
-dis_mic <- ggplot(lissy_disaggregated_mic) + 
-  geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
-  scale_fill_viridis_d(direction = -1) +
-  facet_wrap(cname~., ncol = 1, nrow = length(unique(lissy_disaggregated_mic$cname)), strip.position = "left") +
-  # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_mic$year)), by = 2)]) +
-  # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
-  scale_x_continuous(breaks = seq(0, max_pct_mic, by = 0.05),
-                     labels = scales::percent_format(accuracy = 1)) +
-  labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
-       fill = "") +
-  theme(legend.position="none") +
-  guides(fill = guide_legend(reverse = T))
-
-plot_grid(plot_grid(dis_hic, dis_mic, ncol = 2), dis_legend, nrow = 2, rel_heights = c(0.95, 0.05))
-ggsave(path = plot_path, filename = sprintf(plot_template, "deep_disagg"), scale=1)
+# Create the two groups to be compared
+hic <- c("ge","il","mx","ru") # left group
+mic <- c("rs", "tw", "uy", "kr")    # right group
+make_disagg_comparison(group1 = hic, group2 = mic, plot_name = "RoW")
 
 ## findings
 # Switzerland: really cool, in 2013, it seems there was a new means-tested program
@@ -205,18 +232,18 @@ ggsave(path = plot_path, filename = sprintf(plot_template, "deep_disagg"), scale
 
 
 ## pick one?
-ggplot(lissy_disaggregated %>% dplyr::filter(iso3 == "irl")) + 
-  geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
-  scale_fill_viridis_d(direction = -1) +
-  facet_wrap(cname~., ncol = 1, nrow = 6, strip.position = "left") +
-  # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), by = 2)]) +
-  # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
-  scale_x_continuous(breaks = seq(0, max_pct_hic, by = 0.05),
-                     labels = scales::percent_format(accuracy = 1)) +
-  labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
-       fill = "") +
-  theme(legend.position="bottom") +
-  guides(fill = guide_legend(reverse = T))
+# ggplot(lissy_disaggregated %>% dplyr::filter(iso3 == "irl")) + 
+#   geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
+#   scale_fill_viridis_d(direction = -1) +
+#   facet_wrap(cname~., ncol = 1, nrow = 6, strip.position = "left") +
+#   # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), by = 2)]) +
+#   # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
+#   scale_x_continuous(breaks = seq(0, max_pct_hic, by = 0.05),
+#                      labels = scales::percent_format(accuracy = 1)) +
+#   labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
+#        fill = "") +
+#   theme(legend.position="bottom") +
+#   guides(fill = guide_legend(reverse = T))
 
 
 

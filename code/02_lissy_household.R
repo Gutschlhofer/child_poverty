@@ -1,7 +1,7 @@
 library(dplyr) 
 library(stats)
 
-## weighted median function ##################################################
+## weighted median function ####################################################
 weighted.median <- function (x, w = 1, na.rm = FALSE) {
   if (length(w) == 1) 
     w <- rep(w, length(x))
@@ -26,7 +26,7 @@ weighted.median <- function (x, w = 1, na.rm = FALSE) {
     return(mean(c(x[ind1], x[ind2])))
   return(max(c(x[ind1], x[ind2])))
 }
-##############################################################################
+################################################################################
 
 identifiers <- c(
                  'au01h','au03h','au04h','au08h','au10h','au14h','br06h','br09h',
@@ -63,16 +63,14 @@ mic <- c("br","cn","in", "za")
 ext <- c("de", "at", "dk", "fi", "ge", "gr", "il", "jp", "mx", "pl", "ru", "rs", 
          "kr", "es", "ch", "tw", "uy")
 
-# years <- c('04','07','10','13','15')
+# reduce to most recent years because file size is too big
 years <- 2:16
-
-identifiers <- identifiers[identifiers != 'uk18h'] # uk18h is invalid
-
-identifiers <- identifiers[as.numeric(substr(identifiers,3,4)) %in% years] # reduce to most recent years because file size is too big
+identifiers <- identifiers[as.numeric(substr(identifiers,3,4)) %in% years]
 
 # only HICs
 # identifiers <- identifiers[substr(identifiers,1,2) %in% hic]
 
+# specific country
 # identifiers <- identifiers[substr(identifiers,1,2) == "us"]
 
 # deflator for abs poverty
@@ -85,40 +83,34 @@ final_string <- ""
 
 for(i in 1:length(identifiers)){
   
-  # identifier <- identifiers[1]
   identifier <- identifiers[i]
   
   print(identifier)
 
-  dat <- read.LIS(identifier) # HH income
+  dat <- read.LIS(identifier)
   
   # au and de have NAs in nhhmem or nhhmem17
   dat <- dat %>% filter(!is.na(hid),!is.na(dhi),!is.na(hpopwgt),!is.na(nhhmem),!is.na(nhhmem17))
   
-  dat <- dat %>% 
-    # select(iso3, year, hid, hpopwgt, nhhmem, nhhmem17, dhi) %>%
-    filter(dhi > 0) # exclude negative and zero income
-    # mutate(dhi = ifelse(dhi > 0, dhi, 0)) # version b) recode inc <=0 to 0
+  # Main setting ---------------------------------------------------------------
+  dat <- dat %>%
+    dplyr::filter(dhi > 0)
   
-  # calc dhi by hand
-  # dhi = hitotal (= hilabour + hicapital + hipension + hipubsoc + hiprivate) - hxitsc (=tax + social sec contrib)
-  # other interesting:
-  # hxiht Inter-Household Transfers Paid
-  # hxotax Other Direct Taxes including property taxes
-  # dat <- dat %>% mutate(dhi2 = (hilabour + hicapital + hipension + hipubsoc + hiprivate) - hxitsc, # dhi is exactly the same
-  #                       hpublic2 = hpub_i + hpub_a + hpub_u,
-  #                       hpublicdiff = hpublic - hpublic2,
-  #                       hpubsocdiff = hipubsoc - hpublic2)
-  # 
-  # print(summary(dat$hpublicdiff))
-  # print(summary(dat$hpubsocdiff))
-  # print(summary(dat$hpub_a))
+  # robustness a) --------------------------------------------------------------
+  # dat <- dat %>% 
+  #   dplyr::filter(dhi > 0,
+  #                 hi12/dhi < 0.5) # exclude negative and zero income AND self empl >= 0.5 of dhi
+
+  # robustness b) --------------------------------------------------------------
+  # dat <- dat %>% 
+  #   dplyr::mutate(dhi = ifelse(dhi > 0, dhi, 0))
+
+  # line <- c(1.9,3.2,5.5)[3]
+  line <- ifelse(substr(identifier,1,2) %in% hic, 6, # HIC
+                 ifelse(substr(identifier,1,2) %in% mic, 2, # MIC
+                        c(1.9,3.2,5.5)[2])) # the last option are the extension countries
   
-  # all.equal(dat$dhi, dat$dhi2) %>% print()
-  
-  # line <- if_else(substr(identifier,1,2) %in% hic, 6, 2)
-  line <- c(1.9,3.2,5.5)[3]
-  
+  # create vector of leap years to control days
   leap_year <- c(2000,2004,2008,2012,2016,2020)
   
   scales <- data.frame(
@@ -142,7 +134,7 @@ for(i in 1:length(identifiers)){
              sumhpopwgt17 = hpopwgt*nhhmem17) %>%
       mutate(phi = dhi/((nhhmem-nhhmem17)+gamma*nhhmem17)^theta) %>% # equivalence scale
       mutate(rel_povline = 0.25*(weighted.median(phi, w = sumhpopwgt))) %>%
-      mutate(is_rel_pov = if_else(phi < rel_povline, T, F)) %>% #maybe < and not <=?
+      mutate(is_rel_pov = if_else(phi < rel_povline, T, F)) %>%
       filter(nhhmem17 >= 1)
     
     rel_poverty <- sum(dat_child$sumhpopwgt17[dat_child$is_rel_pov])/sum(dat_child$sumhpopwgt17)#*100
@@ -194,4 +186,4 @@ for(i in 1:length(identifiers)){
 }
 
 cat(final_string)
-
+# copy-paste the output into output/results_lissy.csv
