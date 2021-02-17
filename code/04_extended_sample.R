@@ -1,6 +1,5 @@
-library(tidyverse)
-library(countrycode)
-library(cowplot)
+library(pacman)
+p_load(tidyverse, countrycode, cowplot)
 
 ## visualisation settings
 # save plots under
@@ -229,22 +228,6 @@ make_disagg_comparison(group1 = hic, group2 = mic, plot_name = "RoW")
 # seems as if Israel massively cut down on means-tested programs (or less eligible), increasing poverty
 # Mexico also dependent on transfers
 # Uruguay seems very effective in reducing child poverty
-
-
-## pick one?
-# ggplot(lissy_disaggregated %>% dplyr::filter(iso3 == "irl")) + 
-#   geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
-#   scale_fill_viridis_d(direction = -1) +
-#   facet_wrap(cname~., ncol = 1, nrow = 6, strip.position = "left") +
-#   # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), by = 2)]) +
-#   # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
-#   scale_x_continuous(breaks = seq(0, max_pct_hic, by = 0.05),
-#                      labels = scales::percent_format(accuracy = 1)) +
-#   labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
-#        fill = "") +
-#   theme(legend.position="bottom") +
-#   guides(fill = guide_legend(reverse = T))
-
 
 
 

@@ -1,6 +1,5 @@
-library(tidyverse)
-library(countrycode)
-library(cowplot)
+library(pacman)
+p_load(tidyverse, countrycode, cowplot)
 
 ## visualisation settings
 # save plots under
