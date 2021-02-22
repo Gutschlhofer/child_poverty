@@ -1,10 +1,12 @@
-library(pacman)
-p_load(tidyverse, countrycode, cowplot)
+## This file prepares all visualisations done on the data results of the 
+#  original sample
 
-## visualisation settings
-# save plots under
-plot_path <- "output/plots"
-plot_template <- paste0("replication_%s",".png")
+library(pacman)
+p_load(tidyverse, countrycode, cowplot, RColorBrewer)
+
+## Visualisation settings
+plot_path <- "output/plots" # save plots here
+plot_template <- paste0("original_%s",".png")
 
 identifiers <- c('au01h','au03h','au04h','au08h','au10h','au14h','br06h','br09h',
                  'br11h','br13h','br16h','ca00h','ca04h','ca07h','ca10h','ca12h',
@@ -26,29 +28,37 @@ mic <- c("br","cn","in", "za")
 hic <- tolower(countrycode(hic, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
 mic <- tolower(countrycode(mic, "iso2c", "iso3c", custom_match = c("UK" = "GBR")))
 
-# we manually created this file
+# We manually created this file reading/guessing the rates from the paper
 caisme <- read.csv("input/caisme_results.csv") %>%
   mutate(iso3 = tolower(iso3),
          rel_pov_lis = rel_pov_lis / 100,
          abs_pov_lis = abs_pov_lis / 100,
          abs_pov_pc = abs_pov_pc / 100)
 
+# read LISSY results
 lissy <- read.csv("output/lissy_results.csv") %>%
   dplyr::mutate(cname = countrycode(iso3, "iso3c", "country.name", custom_match = c("RSB" = "Serbia"))) %>% 
   dplyr::filter(iso3 %in% c(hic,mic))
 
+# $1.90 poverty line
 lissy_190 <- read.csv("output/lissy_results_190.csv") %>%
+  dplyr::filter(iso3 %in% mic) %>%
   mutate(cname = countrycode(iso3, "iso3c", "country.name"),
          line = "$1.90")
 
+# $3.20 poverty line
 lissy_320 <- read.csv("output/lissy_results_320.csv") %>%
+  dplyr::filter(iso3 %in% mic) %>%
   mutate(cname = countrycode(iso3, "iso3c", "country.name"),
          line = "$3.20")
 
+# $5.50 poverty line
 lissy_550 <- read.csv("output/lissy_results_550.csv") %>%
+  dplyr::filter(iso3 %in% mic) %>%
   mutate(cname = countrycode(iso3, "iso3c", "country.name"),
          line = "$5.50")
 
+# Combine $1.90, $3.20 and $5.50 to one data frame
 lissy_wb <- rbind(lissy_190, lissy_320, lissy_550) %>% 
   dplyr::select(iso3, cname, year, line, abs_pov_lis)
 
@@ -59,14 +69,13 @@ lissy_wb <- rbind(lissy_190, lissy_320, lissy_550) %>%
 #   dplyr::select(iso3, year, rel.l, rel.comp, rel.comp.ok, rel.comp.diff) %>% 
 #   dplyr::mutate(rel.comp = ifelse(rel.comp.ok, 0, rel.comp))
 
-library(RColorBrewer)
 # choose discrete color palette
 cols <- brewer.pal(name = "Dark2", n = 8)
 # add 2 more colors
 additional_cols <- c("#0000FF")#,"#FF0000")
 cols <- c(cols, additional_cols)
 
-# make colors fit for each country
+# Make colors fit for each country
 plot_cols <- as.character(cols)
 names(plot_cols) <- as.character(unique(lissy$cname))
 
@@ -99,7 +108,7 @@ abs_scale <- c(
   abs_pov_g75t75 = "\u03B3 = .75, \u03B8 = .75"
 )
 
-# hic
+# HIC
 lissy_hic <- lissy %>% 
   dplyr::filter(iso3 %in% hic) %>%
   dplyr::select(-abs_pov_g125t50,-abs_pov_g50t50) %>% 
@@ -110,20 +119,16 @@ lissy_hic <- lissy %>%
 
 ggplot(lissy_hic) +
   geom_line(aes(x=year, y=value, colour = name)) +
-  # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-  # scale_color_manual(values = rep("#000000",6)) +
-  # scale_color_manual(values = plot_cols) +
-  scale_color_viridis_d() +
-  labs(x ="Year", y = "Absolute Child Poverty Rates ($6 a day)",
+  scale_color_viridis_d(end = 0.9) +
+  labs(x ="Year", y = "Absolute Child Poverty Rates ($6 a day, 2011 const. int. $)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy$year), max(lissy$year), by = 4)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy$rel_pov_lis)*100)/100, by = 0.005),
                      labels = scales::percent_format(accuracy = 0.5)) +
-  # theme_minimal() + 
   facet_wrap(~cname, nrow = 2)
 ggsave(path = plot_path, filename = sprintf(plot_template, "absolute_hic_6"), width = 8, height = 6)
 
-# mic
+# MIC
 lissy_mic <- lissy %>% 
   dplyr::filter(iso3 %in% mic) %>%
   dplyr::select(-abs_pov_g125t50,-abs_pov_g50t50) %>% 
@@ -134,23 +139,19 @@ lissy_mic <- lissy %>%
 
 ggplot(lissy_mic) +
   geom_line(aes(x=year, y=value, colour = name)) +
-  # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-  # scale_color_manual(values = rep("#000000",6)) +
-  # scale_color_manual(values = plot_cols) +
-  scale_color_viridis_d() +
-  labs(x ="Year", y = "Absolute Child Poverty Rates ($2 a day)",
+  scale_color_viridis_d(end = 0.9) +
+  labs(x ="Year", y = "Absolute Child Poverty Rates ($2 a day, 2011 const. int. $)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy$year), max(lissy$year), by = 2)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy$abs_pov_pc)*100)/100, by = 0.1),
                      labels = scales::percent_format(accuracy = 1)) +
-  # theme_minimal() + 
   facet_wrap(~cname, nrow = 2)
 ggsave(path = plot_path, filename = sprintf(plot_template, "absolute_mic_2"), width = 8, height = 6)
 
 
-# Absolute Poverty (3.20 dollars) ----------------------------------------------
+# Absolute Poverty $(3.20) -----------------------------------------------------
 
-# hic
+# HIC
 lissy_hic <- lissy_320 %>% 
   dplyr::filter(iso3 %in% hic) %>%
   dplyr::select(-abs_pov_g125t50,-abs_pov_g50t50) %>% 
@@ -162,10 +163,7 @@ lissy_hic <- lissy_320 %>%
 
 ggplot(lissy_hic) +
   geom_line(aes(x=year, y=value, colour = cname)) +
-  # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-  # scale_color_manual(values = rep("#000000",6)) +
   scale_color_manual(values = plot_cols) +
-  # scale_color_viridis_d() +
   labs(x ="Year", y = "Absolute Child Poverty Rates ($3.2 a day, LIS equivalence scale)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
@@ -184,18 +182,16 @@ lissy_mic <- lissy_320 %>%
 
 ggplot(lissy_mic) +
   geom_line(aes(x=year, y=value, colour = cname)) +
-  # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-  # scale_color_manual(values = rep("#000000",6)) +
   scale_color_manual(values = plot_cols) +
-  # scale_color_viridis_d() +
   labs(x ="Year", y = "Absolute Child Poverty Rates ($3.2 a day, LIS equivalence scale)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy_320$abs_pov_lis)*10)/10, by = 0.05),
-                     labels = scales::percent_format(accuracy = 1)) #+
+                     labels = scales::percent_format(accuracy = 1))
 ggsave(path = plot_path, filename = sprintf(plot_template, "absolute_mic_320"), width = 8, height = 6)
 
-# Absolute Poverty MICs (1.9, 3.20, 5.5 dollars) -------------------------------
+
+# Absolute Poverty MICs ($1.90, $3.20, $5.50) ----------------------------------
 lissy_wb_plot <- lissy_wb %>% 
   dplyr::filter(iso3 %in% mic) %>%
   dplyr::select(cname, iso3, year, starts_with("abs_"), line) %>%
@@ -206,9 +202,6 @@ lissy_wb_plot <- lissy_wb %>%
 
 ggplot(lissy_wb_plot) +
   geom_line(aes(x=year, y=value, colour = line)) +
-  # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-  # scale_color_manual(values = rep("#000000",6)) +
-  # scale_color_manual(values = plot_cols) +
   scale_color_viridis_d(begin = 0.1, end = 0.9) +
   labs(x ="Year", y = "Absolute Child Poverty Rates (LIS equivalence scale)",
        colour = "") +
@@ -217,6 +210,7 @@ ggplot(lissy_wb_plot) +
                      labels = scales::percent_format(accuracy = 1)) +
   facet_wrap(~cname, nrow = 2)
 ggsave(path = plot_path, filename = sprintf(plot_template, "absolute_mic_worldbank"), width = 8, height = 6)
+
 
 # Comparison -------------------------------------------------------------------
 
@@ -244,19 +238,15 @@ comparison <- merge(lissy %>% dplyr::select(cname, iso3, year, rel_pov_lis, abs_
 
 ggplot(comparison) +
   geom_line(aes(x=year, y=value, colour = name)) +
-  # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-  # scale_color_manual(values = rep("#000000",6)) +
-  # scale_color_manual(values = plot_cols) +
   scale_color_viridis_d(begin = 0.1, end = 0.9) +
   geom_abline(intercept = 0, slope = 0, linetype = 2, alpha = 0.6) +
   labs(x ="Year", y = "Percentage Point Difference to Poverty Rates of Cai & Smeeding (2020)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(comparison$year), max(comparison$year), by = 2)) +
-  # scale_y_continuous(breaks = seq(0, ceiling(max(lissy_320$abs_pov_lis)*10)/10, by = 0.05),
-  #                    labels = scales::percent_format(accuracy = 1)) #+
-  theme(legend.position="bottom") +
+  theme(legend.position="bottom",  axis.title.x = element_text(vjust = -0.5)) +
   facet_wrap(~cname, nrow = 3)
 ggsave(path = plot_path, filename = sprintf(plot_template, "comparison"), width = 8, height = 6)
+
 
 # Robustness checks ------------------------------------------------------------
 
@@ -283,16 +273,11 @@ do_robustness_comparison <- function(name = c("a","b")){
   
   ggplot(lissy_robust) +
     geom_line(aes(x=year, y=value, colour = name)) +
-    # geom_point(aes(x=year, y=value, shape = name), size = 2) +
-    # scale_color_manual(values = rep("#000000",6)) +
-    # scale_color_manual(values = plot_cols) +
     scale_color_viridis_d(begin = 0.1, end = 0.9) +
     geom_abline(intercept = 0, slope = 0, linetype = 2, alpha = 0.6) +
     labs(x ="Year", y = sprintf("Percentage Point Difference in Poverty Rate to Robustness (%s)",name),
          colour = "") +
     scale_x_continuous(breaks = seq(min(lissy_robust$year), max(lissy_robust$year), by = 2)) +
-    # scale_y_continuous(breaks = seq(0, ceiling(max(lissy_320$abs_pov_lis)*10)/10, by = 0.05),
-    #                    labels = scales::percent_format(accuracy = 1)) #+
     theme(legend.position="bottom") +
     facet_wrap(~cname, nrow = 3)
   
@@ -302,7 +287,7 @@ do_robustness_comparison <- function(name = c("a","b")){
 do_robustness_comparison("a")
 do_robustness_comparison("b")
 
-# fig. 3a: disagg --------------------------------------------------------------
+# Fig.. 3a: Disagg -------------------------------------------------------------
 
 disagg_name <- c(
   rel_pov_lis = "Disposable income",
@@ -319,17 +304,10 @@ lissy_disaggregated <- lissy %>%
     rel_means = rel_means - rel_pov_lis
   ) %>% 
   tidyr::pivot_longer(cols = all_of(names(disagg_name))) %>%
-  # dplyr::group_by(iso3) %>% 
-  # dplyr::mutate(country_year = if_else(
-  #   year == min(year),
-  #   sprintf("%s, %0.f", cname, year),
-  #   as.character(year))) %>% 
-  # dplyr::ungroup() %>% 
   dplyr::mutate(name = disagg_name[name],
                 name = factor(name, levels = c(rev(disagg_name)))) %>% 
   # now we replace all countryname-year combos just with the year if it's not the first
   dplyr::mutate(
-    # country_year == if_else(year == min(lissy$year[lissy$iso3 == iso3]), country_year, as.character(year)),
     country_year = sprintf("%s, %0.f", cname, year),
     country_year = factor(country_year, levels = rev(unique(country_year))),
     year = factor(year, rev(sort(unique(year))))
@@ -351,7 +329,6 @@ dis_hic <- ggplot(lissy_disaggregated_hic) +
   scale_fill_viridis_d(direction = -1) +
   facet_wrap(cname~., ncol = 1, nrow = 6, strip.position = "left") +
   scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), by = 2)]) +
-  # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
   scale_x_continuous(breaks = seq(0, max_pct_hic, by = 0.05),
                      labels = scales::percent_format(accuracy = 1)) +
   labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
@@ -368,8 +345,6 @@ dis_mic <- ggplot(lissy_disaggregated_mic) +
   geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
   scale_fill_viridis_d(direction = -1) +
   facet_wrap(cname~., ncol = 1, nrow = 6, strip.position = "left") +
-  # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_mic$year)), by = 2)]) +
-  # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
   scale_x_continuous(breaks = seq(0, max_pct_mic, by = 0.05),
                      labels = scales::percent_format(accuracy = 1)) +
   labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
@@ -389,9 +364,7 @@ ggplot(lissy_disaggregated %>% dplyr::filter(iso3 == "irl")) +
   geom_bar(aes(fill=name, x=value, y=year), position="stack", stat="identity") +
   scale_fill_viridis_d(direction = -1) +
   facet_wrap(cname~., ncol = 1, nrow = 6, strip.position = "left") +
-  # scale_y_discrete(breaks = levels(lissy_disaggregated_hic$year)[seq(1, length(levels(lissy_disaggregated_hic$year)), by = 2)]) +
-  # scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
-  scale_x_continuous(breaks = seq(0, max_pct_irl, by = 0.05),
+  scale_x_continuous(breaks = seq(0, ceiling(max_pct_irl*10)/10, by = 0.05),
                      labels = scales::percent_format(accuracy = 1)) +
   labs(x ="Deep Child Poverty Rate (LIS sqrt)", y = "",
        fill = "") +
