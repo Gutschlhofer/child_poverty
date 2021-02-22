@@ -71,8 +71,8 @@ lissy_wb <- rbind(lissy_190, lissy_320, lissy_550) %>%
 
 # choose discrete color palette
 cols <- brewer.pal(name = "Dark2", n = 8)
-# add 2 more colors
-additional_cols <- c("#0000FF")#,"#FF0000")
+# add one more color
+additional_cols <- c("#0000FF")
 cols <- c(cols, additional_cols)
 
 # Make colors fit for each country
