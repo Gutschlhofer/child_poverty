@@ -120,7 +120,7 @@ lissy_hic <- lissy %>%
 ggplot(lissy_hic) +
   geom_line(aes(x=year, y=value, colour = name)) +
   scale_color_viridis_d(end = 0.9) +
-  labs(x ="Year", y = "Absolute Child Poverty Rates ($6 a day, 2011 const. int. $)",
+  labs(x ="Year", y = "Extreme Child Poverty Rates ($6 a day, 2011 const. int. $)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy$year), max(lissy$year), by = 4)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy$rel_pov_lis)*100)/100, by = 0.005),
@@ -140,7 +140,7 @@ lissy_mic <- lissy %>%
 ggplot(lissy_mic) +
   geom_line(aes(x=year, y=value, colour = name)) +
   scale_color_viridis_d(end = 0.9) +
-  labs(x ="Year", y = "Absolute Child Poverty Rates ($2 a day, 2011 const. int. $)",
+  labs(x ="Year", y = "Extreme Child Poverty Rates ($2 a day, 2011 const. int. $)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy$year), max(lissy$year), by = 2)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy$abs_pov_pc)*100)/100, by = 0.1),
@@ -164,7 +164,7 @@ lissy_hic <- lissy_320 %>%
 ggplot(lissy_hic) +
   geom_line(aes(x=year, y=value, colour = cname)) +
   scale_color_manual(values = plot_cols) +
-  labs(x ="Year", y = "Absolute Child Poverty Rates ($3.2 a day, LIS equivalence scale)",
+  labs(x ="Year", y = "Extreme Child Poverty Rates ($3.2 a day, LIS equivalence scale)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy_320$abs_pov_lis)*100)/100, by = 0.001),
@@ -183,7 +183,7 @@ lissy_mic <- lissy_320 %>%
 ggplot(lissy_mic) +
   geom_line(aes(x=year, y=value, colour = cname)) +
   scale_color_manual(values = plot_cols) +
-  labs(x ="Year", y = "Absolute Child Poverty Rates ($3.2 a day, LIS equivalence scale)",
+  labs(x ="Year", y = "Extreme Child Poverty Rates ($3.2 a day, LIS equivalence scale)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy_320$year), max(lissy_320$year), by = 2)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy_320$abs_pov_lis)*10)/10, by = 0.05),
@@ -203,7 +203,7 @@ lissy_wb_plot <- lissy_wb %>%
 ggplot(lissy_wb_plot) +
   geom_line(aes(x=year, y=value, colour = line)) +
   scale_color_viridis_d(begin = 0.1, end = 0.9) +
-  labs(x ="Year", y = "Absolute Child Poverty Rates (LIS equivalence scale)",
+  labs(x ="Year", y = "Extreme Child Poverty Rates (LIS equivalence scale)",
        colour = "") +
   scale_x_continuous(breaks = seq(min(lissy_wb$year), max(lissy_wb$year), by = 2)) +
   scale_y_continuous(breaks = seq(0, ceiling(max(lissy_wb$abs_pov_lis)*10)/10, by = 0.1),
@@ -237,7 +237,7 @@ comparison <- merge(lissy %>% dplyr::select(cname, iso3, year, rel_pov_lis, abs_
                 name = factor(name, levels = diff_names))
 
 ggplot(comparison) +
-  geom_line(aes(x=year, y=value, colour = name)) +
+  geom_line(aes(x=year, y=value*100, colour = name)) +
   scale_color_viridis_d(begin = 0.1, end = 0.9) +
   geom_abline(intercept = 0, slope = 0, linetype = 2, alpha = 0.6) +
   labs(x ="Year", y = "Percentage Point Difference to Poverty Rates of Cai & Smeeding (2020)",
@@ -272,7 +272,7 @@ do_robustness_comparison <- function(name = c("a","b")){
                   name = factor(name, levels = diff_names))
   
   ggplot(lissy_robust) +
-    geom_line(aes(x=year, y=value, colour = name)) +
+    geom_line(aes(x=year, y=value*100, colour = name)) +
     scale_color_viridis_d(begin = 0.1, end = 0.9) +
     geom_abline(intercept = 0, slope = 0, linetype = 2, alpha = 0.6) +
     labs(x ="Year", y = sprintf("Percentage Point Difference in Poverty Rate to Robustness (%s)",name),
